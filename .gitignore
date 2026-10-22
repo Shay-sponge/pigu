@@ -1,0 +1,18 @@
+# Publish only the standalone playground; local archives stay on this Mac.
+/*
+!/.gitignore
+!/.github/
+!/src/
+!/public/
+!/scripts/
+!/index.html
+!/package.json
+!/package-lock.json
+!/tsconfig.json
+!/vite.config.ts
+!/README.md
+
+**/.DS_Store
+**/__pycache__/
+**/*.log
+**/.env*

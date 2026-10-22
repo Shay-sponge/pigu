@@ -1,0 +1,53 @@
+{
+  "source": "MakeHuman community CC0 hm08 base mesh and adult female morph targets",
+  "sourceCommit": "a8bc2d54ff0ac92e78ff71431b1023eda42bf482",
+  "baseSHA256": "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c",
+  "targets": [
+    [
+      "macrodetails/caucasian-female-young.target",
+      0.5
+    ],
+    [
+      "macrodetails/asian-female-young.target",
+      0.5
+    ],
+    [
+      "macrodetails/universal-female-young-averagemuscle-averageweight.target",
+      0.78
+    ],
+    [
+      "macrodetails/universal-female-young-averagemuscle-maxweight.target",
+      0.22
+    ],
+    [
+      "buttocks/buttocks-volume-incr.target",
+      0.7
+    ],
+    [
+      "hip/hip-scale-horiz-incr.target",
+      0.16
+    ]
+  ],
+  "adultAgeBasis": "MakeHuman young-adult morph (25 years); no child morphs",
+  "upperGlute": {
+    "centerY": 0.56,
+    "depth": 0.26,
+    "width": 0.035,
+    "lift": 0.06
+  },
+  "modelSHA256": "ab4fb354394000c6492061c53c3e00ee694d34e6a5c04af970a70e1b02afeeba",
+  "vertices": 50867,
+  "triangles": 99660,
+  "bounds": {
+    "min": [
+      -1.3637363910675049,
+      -1.4800000190734863,
+      -1.0271841287612915
+    ],
+    "max": [
+      1.3637363910675049,
+      1.4299999475479126,
+      1.0940572023391724
+    ]
+  }
+}

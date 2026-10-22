@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f1f4f0" />
+    <meta name="description" content="Pigu, an independent soft-body playground." />
+    <title>Pigu / The Soft Studio</title>
+  </head>
+  <body>
+    <main id="app">
+      <div id="scene" role="application" aria-label="Interactive adult torso"></div>
+      <header class="header">
+        <a class="wordmark" href="%BASE_URL%" aria-label="Pigu home"><i data-lucide="fingerprint"></i><span>pigu<span class="brand-dot">.</span></span></a>
+        <span class="header-caption">THE SOFT STUDIO</span>
+        <div class="header-actions">
+          <span class="live"><span></span> LIVE</span>
+          <button class="icon-button" id="sound" aria-label="Enable sound" aria-pressed="false" data-tip="Sound"><i data-lucide="volume-x"></i></button>
+          <button class="icon-button" id="capture" aria-label="Save image" data-tip="Save image"><i data-lucide="camera"></i></button>
+          <button class="icon-button mobile-settings" id="settings-toggle" aria-label="Open settings" aria-expanded="false" data-tip="Settings"><i data-lucide="sliders-horizontal"></i></button>
+        </div>
+      </header>
+      <section class="identity" aria-label="Studio">
+        <span class="eyebrow"><span class="tiny-cross">+</span> SOFT OBJECT NO. 01</span>
+        <h1>pigu<span>.</span></h1>
+        <p>A little softer.</p>
+        <div class="edition"><span class="edition-line"></span><span>THE ORIGINAL<br /><b>01 / HUMAN STUDY</b></span></div>
+      </section>
+      <aside class="settings" id="settings" aria-label="Material and physics">
+        <div class="settings-heading"><span>MAKE IT YOURS</span><i data-lucide="sliders-horizontal"></i></div>
+        <div class="setting-section">
+          <div class="section-label">01 <span>THE FEEL</span></div>
+          <label class="range-label" for="softness">Softness <output id="softness-value">68</output></label>
+          <input type="range" id="softness" min="0" max="100" value="68" />
+          <div class="range-ends"><span>Firm</span><span>Soft</span></div>
+          <label class="range-label" for="bounce">Bounce <output id="bounce-value">72</output></label>
+          <input type="range" id="bounce" min="0" max="100" value="72" />
+          <div class="range-ends"><span>Subtle</span><span>Jelly</span></div>
+          <label class="range-label" for="force">Slap strength <output id="force-value">65</output></label>
+          <input type="range" id="force" min="10" max="100" value="65" />
+        </div>
+        <div class="setting-section">
+          <div class="section-label">02 <span>THE LOOK</span></div>
+          <div class="swatch-row"><span>Skin</span><div class="swatches" id="skin-swatches" role="group" aria-label="Skin tone"></div></div>
+          <div class="swatch-row"><span>Swimwear</span><div class="swatches" id="fabric-swatches" role="group" aria-label="Swimwear color"></div></div>
+        </div>
+        <div class="setting-section tempo-section">
+          <div class="section-label">03 <span>THE TEMPO</span></div>
+          <div class="tempo-control">
+            <button class="tempo active" data-speed="1" aria-pressed="true">Real time</button>
+            <button class="tempo" data-speed="0.35" aria-pressed="false">Slow motion</button>
+          </div>
+        </div>
+        <button id="reset" class="reset-button"><i data-lucide="rotate-ccw"></i> Reset studio</button>
+      </aside>
+      <div class="scene-status" id="loading"><span class="loading-ring"></span><span>Preparing your soft spot</span></div>
+      <div id="load-error" class="error-state" hidden><h2>One moment.</h2><p id="error-message"></p><button id="retry">Try again</button></div>
+      <div class="touch-label" id="touch-label" aria-hidden="true">nice.</div>
+      <div class="cursor" id="cursor" aria-hidden="true"><i data-lucide="hand"></i></div>
+      <section class="session" aria-label="Session stats">
+        <span class="eyebrow">A MOMENT WELL SPENT</span>
+        <div class="counter"><span id="slap-count">000</span><span>happy<br />slaps</span></div>
+        <div class="response-meter"><span class="meter-bars" id="meter-bars"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></span><span id="response-state">AT REST</span></div>
+      </section>
+      <div class="bottom-controls">
+        <div class="view-control" role="group" aria-label="Camera view">
+          <button data-view="back" aria-pressed="false">Back</button>
+          <button data-view="quarter" class="active" aria-pressed="true">Three-quarter</button>
+          <button data-view="side" aria-pressed="false">Side</button>
+          <span></span>
+          <button class="icon-button" id="auto-rotate" aria-label="Auto rotate" aria-pressed="false" data-tip="Auto rotate"><i data-lucide="rotate-3d"></i></button>
+        </div>
+        <div class="tool-dock" role="group" aria-label="Interaction mode">
+          <button data-mode="slap" class="active" aria-pressed="true"><i data-lucide="hand"></i><span>Slap</span></button>
+          <button data-mode="grab" aria-pressed="false"><i data-lucide="pointer"></i><span>Squish</span></button>
+          <button data-mode="orbit" aria-pressed="false"><i data-lucide="orbit"></i><span>Orbit</span></button>
+        </div>
+      </div>
+      <footer class="footer"><span>GOOD FEELINGS, NO HARD EDGES.</span><span class="footer-right">PIGU STUDIO <b>&copy; 2026</b></span></footer>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
