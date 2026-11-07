@@ -30,35 +30,33 @@
   ],
   "adultAgeBasis": "MakeHuman young-adult morph (25 years); no child morphs",
   "gluteShape": {
-    "revision": "rounded-lifted-v2",
-    "centerX": 0.58,
-    "centerY": 0.28,
-    "spreadX": 0.32,
-    "spreadY": 0.48,
-    "depth": 0.24,
-    "width": 0.16,
-    "upperCenterY": 0.68,
-    "upperDepth": 0.08,
-    "lowerCenterY": -0.22,
-    "lowerDepth": 0.12,
-    "lowerSpreadY": 0.16,
-    "foldCenterY": -0.25,
-    "foldSpreadY": 0.38,
-    "foldLift": 0.32
+    "revision": "spherical-cheeks-v3",
+    "centerX": 0.56,
+    "centerY": 0.32,
+    "centerZ": 0.16,
+    "radiusX": 0.8,
+    "radiusY": 0.88,
+    "radiusZ": 0.88,
+    "blendRadius": 0.2,
+    "seamStart": 0.035,
+    "seamEnd": 0.24,
+    "rearStart": -0.24,
+    "rearEnd": 0.02,
+    "volumeResolution": 113
   },
-  "modelSHA256": "67ccf79b5910eb7ebc0efa13ccfda39f5414998fa886de190760bfca21c1005b",
-  "vertices": 50890,
-  "triangles": 99706,
+  "modelSHA256": "b6aba87b604af0857a5d51d566706f11a2fba1019e1dfbfb97b555eb31cea047",
+  "vertices": 42902,
+  "triangles": 84754,
   "bounds": {
     "min": [
-      -1.3540937900543213,
+      -1.3797132968902588,
       -1.4800000190734863,
-      -1.0271841287612915
+      -1.0270352363586426
     ],
     "max": [
-      1.3540937900543213,
+      1.3797132968902588,
       1.4299999475479126,
-      0.9755458235740662
+      1.0398385524749756
     ]
   }
 }
