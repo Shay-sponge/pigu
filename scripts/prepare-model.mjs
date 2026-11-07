@@ -18,11 +18,12 @@ const targets = [
   ['hip/hip-scale-horiz-incr.target', 0.16],
 ];
 const gluteShape = {
-  revision: 'spherical-cheeks-v3',
+  revision: 'joined-spherical-cheeks-v4',
   centerX: 0.56, centerY: 0.32, centerZ: 0.16,
   radiusX: 0.80, radiusY: 0.88, radiusZ: 0.88,
   blendRadius: 0.20,
-  seamStart: 0.035, seamEnd: 0.24,
+  bridgeRadiusX: 0.38, bridgeRadiusY: 0.81, bridgeRadiusZ: 0.86,
+  grooveWidth: 0.055, grooveDepth: 0.065,
   rearStart: -0.24, rearEnd: 0.02,
   volumeResolution: 113,
 };
@@ -96,16 +97,28 @@ function volumeDistance(point) {
   signRay.origin.copy(point);
   const exit = bvh.raycastFirst(signRay, DoubleSide);
   const torso = hit.distance * (exit && exit.face.normal.z > 0 ? -1 : 1);
+  // A central volume joins the lobes without flattening their round silhouette.
+  // The narrow shallow cleft replaces the old wide, excluded medial region.
+  const rear = MathUtils.smootherstep(point.z, gluteShape.rearStart, gluteShape.rearEnd);
+  const groove = gluteShape.grooveDepth * Math.exp(-((point.x / gluteShape.grooveWidth) ** 2))
+    * MathUtils.smootherstep(point.y, -0.74, -0.28)
+    * (1 - MathUtils.smootherstep(point.y, 0.90, 1.24)) * rear;
+  const posteriorZ = point.z + groove;
   const sphere = (Math.hypot(
     (Math.abs(point.x) - gluteShape.centerX) / gluteShape.radiusX,
     (point.y - gluteShape.centerY) / gluteShape.radiusY,
-    (point.z - gluteShape.centerZ) / gluteShape.radiusZ,
+    (posteriorZ - gluteShape.centerZ) / gluteShape.radiusZ,
   ) - 1) * distanceScale;
-  const h = Math.max(gluteShape.blendRadius - Math.abs(torso - sphere), 0) / gluteShape.blendRadius;
-  const union = Math.min(torso, sphere) - gluteShape.blendRadius * h * h * 0.25;
-  const amount = MathUtils.smootherstep(point.z, gluteShape.rearStart, gluteShape.rearEnd)
-    * MathUtils.smootherstep(Math.abs(point.x), gluteShape.seamStart, gluteShape.seamEnd);
-  return MathUtils.lerp(torso, union, amount);
+  const bridge = (Math.hypot(
+    point.x / gluteShape.bridgeRadiusX,
+    (point.y - gluteShape.centerY) / gluteShape.bridgeRadiusY,
+    (posteriorZ - gluteShape.centerZ) / gluteShape.bridgeRadiusZ,
+  ) - 1) * gluteShape.bridgeRadiusX;
+  const join = Math.max(0.12 - Math.abs(sphere - bridge), 0) / 0.12;
+  const cheeks = Math.min(sphere, bridge) - 0.12 * join * join * 0.25;
+  const h = Math.max(gluteShape.blendRadius - Math.abs(torso - cheeks), 0) / gluteShape.blendRadius;
+  const union = Math.min(torso, cheeks) - gluteShape.blendRadius * h * h * 0.25;
+  return MathUtils.lerp(torso, union, rear);
 }
 const resolution = gluteShape.volumeResolution;
 const volumeHalfSize = new Vector3(1.6, 1.8, 1.4);

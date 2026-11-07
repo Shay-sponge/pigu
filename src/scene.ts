@@ -168,8 +168,16 @@ export class SoftScene {
     return hit && hit.point.z > 0.08 && hit.point.y < 0.7 && hit.point.y > -0.85 ? hit : null;
   }
 
-  private slap(point: THREE.Vector3, x: number, y: number) {
-    this.physics.hit(point, this.force, this.pointerSpeed);
+  private surfaceNormal(hit: THREE.Intersection) {
+    return (hit.normal ?? hit.face?.normal ?? new THREE.Vector3(0, 0, 1)).clone()
+      .transformDirection(this.mesh.matrixWorld);
+  }
+
+  private slap(point: THREE.Vector3, normal: THREE.Vector3, x: number, y: number) {
+    // Screen velocity follows the camera's right/up axes at every view angle.
+    const velocity = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0).multiplyScalar(this.pointerSpeed.x)
+      .addScaledVector(new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 1), this.pointerSpeed.y);
+    this.physics.hit(point, this.force, velocity, normal);
     this.hits++;
     this.skin.uniforms.uContact.value.copy(point);
     this.skin.uniforms.uFlush.value = 0.7;
@@ -221,9 +229,9 @@ export class SoftScene {
       }
       this.controls.enableRotate = false;
       this.cursor.classList.add('down');
-      if (this.mode === 'slap') this.slap(hit.point, event.clientX, event.clientY);
+      if (this.mode === 'slap') this.slap(hit.point, this.surfaceNormal(hit), event.clientX, event.clientY);
       else {
-        this.physics.startGrab(hit.point);
+        this.physics.startGrab(hit.point, this.surfaceNormal(hit));
         const normal = this.camera.getWorldDirection(new THREE.Vector3());
         this.grabPlane.setFromNormalAndCoplanarPoint(normal, hit.point);
       }
@@ -242,10 +250,14 @@ export class SoftScene {
         event.preventDefault();
         this.callbacks.unlock();
         const side = this.hits % 2 ? -1 : 1;
-        const p = new THREE.Vector3(side * 0.57, 0, 0.77);
+        // Find the visible outer surface rather than using an obsolete depth.
+        this.raycaster.set(new THREE.Vector3(side * 0.57, 0, 3), new THREE.Vector3(0, 0, -1));
+        const hit = this.raycaster.intersectObject(this.mesh, false)[0];
+        if (!hit) return;
+        const p = hit.point;
         const screen = p.clone().project(this.camera);
         const rect = canvas.getBoundingClientRect();
-        this.slap(p, rect.left + (screen.x + 1) * rect.width / 2, rect.top + (1 - screen.y) * rect.height / 2);
+        this.slap(p, this.surfaceNormal(hit), rect.left + (screen.x + 1) * rect.width / 2, rect.top + (1 - screen.y) * rect.height / 2);
       }
     });
   }
@@ -291,6 +303,7 @@ export class SoftScene {
       frames: this.frames, fps: Math.round(this.fps), hits: this.hits,
       physicsSteps: this.physics?.steps, displacement: this.physics?.maxDisplacement,
       peakDisplacement: this.physics?.peakDisplacement, energy: this.physics?.energy,
+      muscleDisplacement: this.physics?.muscleDisplacement, skinIndentation: this.physics?.skinIndentation,
       settings: { softness: this.physics?.softness, bounce: this.physics?.bounce, strength: this.force, timeScale: this.speed, mode: this.mode },
       canvas: { width: this.renderer.domElement.width, height: this.renderer.domElement.height },
       camera: this.camera.position.toArray(),

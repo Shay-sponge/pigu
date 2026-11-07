@@ -44,9 +44,14 @@ export function createSkin() {
         float side = clamp(abs(p.x) / 1.12, 0., 1.);
         float waist = 1.02 + .09 * pow(side, 1.8);
         float back = smoothstep(-.20, .25, p.z);
-        float bottom = mix(-.12 + 1.25*pow(side,1.5), -.08 + 1.45*pow(side,.65), back);
         float belt = smoothstep(waist-.095, waist-.083, p.y);
-        float coverage = smoothstep(bottom-.006, bottom+.006, p.y);
+        float front = smoothstep(-.126 + 1.25*pow(side,1.5), -.114 + 1.25*pow(side,1.5), p.y);
+        // Follow the recessed medial surface. The back is a narrow string with
+        // a small upper triangle, rather than a broad V painted over the lobes.
+        float width = .024 + .12 * smoothstep(.68, 1.02, p.y);
+        float string = (1.-smoothstep(width-.004,width+.004,abs(p.x)))
+          * smoothstep(-.94,-.91,p.y);
+        float coverage = mix(front, string, back);
         return max(belt, coverage) * (1.-smoothstep(waist, waist+.009, p.y));
       }
       float poreHeight(vec3 p) {

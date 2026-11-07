@@ -30,7 +30,7 @@
   ],
   "adultAgeBasis": "MakeHuman young-adult morph (25 years); no child morphs",
   "gluteShape": {
-    "revision": "spherical-cheeks-v3",
+    "revision": "joined-spherical-cheeks-v4",
     "centerX": 0.56,
     "centerY": 0.32,
     "centerZ": 0.16,
@@ -38,15 +38,18 @@
     "radiusY": 0.88,
     "radiusZ": 0.88,
     "blendRadius": 0.2,
-    "seamStart": 0.035,
-    "seamEnd": 0.24,
+    "bridgeRadiusX": 0.38,
+    "bridgeRadiusY": 0.81,
+    "bridgeRadiusZ": 0.86,
+    "grooveWidth": 0.055,
+    "grooveDepth": 0.065,
     "rearStart": -0.24,
     "rearEnd": 0.02,
     "volumeResolution": 113
   },
-  "modelSHA256": "b6aba87b604af0857a5d51d566706f11a2fba1019e1dfbfb97b555eb31cea047",
-  "vertices": 42902,
-  "triangles": 84754,
+  "modelSHA256": "9475e27973d77690ddc6876083952c140bbc31680451550b5864fd0b32a777c5",
+  "vertices": 41540,
+  "triangles": 82030,
   "bounds": {
     "min": [
       -1.3797132968902588,

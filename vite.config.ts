@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 const sources = ['index.html', 'package.json', 'package-lock.json', 'vite.config.ts',
   'scripts/prepare-model.mjs', 'public/models/manifest.json',
   'public/models/adult-torso.json', 'public/models/torso-caps.json',
-  ...readdirSync('src').sort().map(file => `src/${file}`)];
+  ...readdirSync('src').filter(file => /\.(?:tsx?|jsx?|css|json)$/.test(file)).sort().map(file => `src/${file}`)];
 const fingerprint = createHash('sha256');
 const sourceHashes: Record<string, string> = {};
 for (const file of sources) {
