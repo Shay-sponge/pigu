@@ -12,10 +12,18 @@ const targets = [
   ['macrodetails/asian-female-young.target', 0.5],
   ['macrodetails/universal-female-young-averagemuscle-averageweight.target', 0.78],
   ['macrodetails/universal-female-young-averagemuscle-maxweight.target', 0.22],
-  ['buttocks/buttocks-volume-incr.target', 0.7],
+  ['buttocks/buttocks-volume-incr.target', 0.5],
   ['hip/hip-scale-horiz-incr.target', 0.16],
 ];
-const upperGlute = { centerY: 0.56, depth: 0.26, width: 0.035, lift: 0.06 };
+const gluteShape = {
+  revision: 'rounded-lifted-v2',
+  centerX: 0.58, centerY: 0.28,
+  spreadX: 0.32, spreadY: 0.48,
+  depth: 0.24, width: 0.16,
+  upperCenterY: 0.68, upperDepth: 0.08,
+  lowerCenterY: -0.22, lowerDepth: 0.12, lowerSpreadY: 0.16,
+  foldCenterY: -0.25, foldSpreadY: 0.38, foldLift: 0.32,
+};
 await mkdir('.cache/model', { recursive: true });
 await mkdir('public/models', { recursive: true });
 await mkdir('public/licenses', { recursive: true });
@@ -58,16 +66,23 @@ for (let i = 0; i < pos.count; i += 3) {
     let py = (pos.getY(j) + 0.8) * 0.72;
     let pz = -pos.getZ(j) * 0.72;
     const rear = MathUtils.smoothstep(pz, -0.05, 0.42);
-    const fullness = Math.exp(-((Math.abs(px) - 0.57) ** 2 / 0.2 + (py - 0.08) ** 2 / 0.3));
-    // Round the upper cheeks while anchoring the cleft, waist, and lower fold.
-    const upper = rear * MathUtils.smoothstep(Math.abs(px), 0.04, 0.25)
-      * MathUtils.smoothstep(py, -0.25, 0.1) * (1 - MathUtils.smoothstep(py, 0.88, 1.28))
-      * Math.exp(-((Math.abs(px) - 0.57) ** 2 / 0.26 + (py - upperGlute.centerY) ** 2 / 0.22));
-    pz += rear * fullness * 0.27;
-    px += Math.sign(px) * rear * fullness * 0.035;
-    pz += upper * upperGlute.depth;
-    px += Math.sign(px) * upper * upperGlute.width;
-    py += upper * upperGlute.lift;
+    const lateral = MathUtils.smoothstep(Math.abs(px), 0.04, 0.28);
+    const waist = 1 - MathUtils.smoothstep(py, 0.90, 1.28);
+    const region = rear * lateral * waist;
+    // A broad dome spreads projection across the cheek instead of stacking
+    // two narrow bulges. The cut boundaries and front remain anchored.
+    const fullness = Math.exp(-((Math.abs(px) - gluteShape.centerX) ** 2 / gluteShape.spreadX
+      + (py - gluteShape.centerY) ** 2 / gluteShape.spreadY));
+    const upper = Math.exp(-((Math.abs(px) - gluteShape.centerX) ** 2 / 0.32
+      + (py - gluteShape.upperCenterY) ** 2 / 0.30));
+    const fold = Math.exp(-((Math.abs(px) - gluteShape.centerX) ** 2 / 0.32
+      + (py - gluteShape.foldCenterY) ** 2 / gluteShape.foldSpreadY));
+    const lower = Math.exp(-((Math.abs(px) - gluteShape.centerX) ** 2 / 0.32
+      + (py - gluteShape.lowerCenterY) ** 2 / gluteShape.lowerSpreadY));
+    pz += region * (fullness * gluteShape.depth + upper * gluteShape.upperDepth
+      + lower * gluteShape.lowerDepth);
+    px += Math.sign(px) * region * fullness * gluteShape.width;
+    py += region * fold * gluteShape.foldLift;
     cropped.push(px, py, pz);
     texcoords.push(uv.getX(j), uv.getY(j));
   }
@@ -132,7 +147,9 @@ const capGeometry = new BufferGeometry();
 capGeometry.setAttribute('position', new Float32BufferAttribute(caps, 3));
 capGeometry.computeVertexNormals();
 function compact(g) {
-  return JSON.stringify(g.toJSON(), (_key, value) => typeof value === 'number' && !Number.isInteger(value) ? Number(value.toFixed(6)) : value);
+  // Omit Three.js's random UUID so identical inputs produce identical assets.
+  return JSON.stringify(g.toJSON(), (key, value) => key === 'uuid' ? undefined
+    : typeof value === 'number' && !Number.isInteger(value) ? Number(value.toFixed(6)) : value);
 }
 await writeFile('public/models/adult-torso.json', compact(finalGeometry));
 await writeFile('public/models/torso-caps.json', compact(capGeometry));
@@ -142,7 +159,7 @@ const manifest = {
   sourceCommit: commit,
   baseSHA256: createHash('sha256').update(original).digest('hex'),
   targets, adultAgeBasis: 'MakeHuman young-adult morph (25 years); no child morphs',
-  upperGlute,
+  gluteShape,
   modelSHA256: createHash('sha256').update(compact(finalGeometry)).digest('hex'),
   vertices: finalGeometry.attributes.position.count,
   triangles: finalGeometry.index.count / 3,

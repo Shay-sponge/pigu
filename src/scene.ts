@@ -4,8 +4,9 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { TissuePhysics, type TouchMode } from './physics';
 import { createSkin } from './material';
 
-const modelUrl = `${import.meta.env.BASE_URL}models/adult-torso.json`;
-const capsUrl = `${import.meta.env.BASE_URL}models/torso-caps.json`;
+// Couple model caches to the source fingerprint, including the mesh bytes.
+const modelUrl = `${import.meta.env.BASE_URL}models/adult-torso.json?v=${__PIGU_BUILD__}`;
+const capsUrl = `${import.meta.env.BASE_URL}models/torso-caps.json?v=${__PIGU_BUILD__}`;
 
 type Callbacks = {
   hit: (point: THREE.Vector3, strength: number, x: number, y: number) => void;

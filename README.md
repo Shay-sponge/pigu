@@ -1,6 +1,6 @@
 # Pigu · The Soft Studio
 
-单模型 3D 软体互动网页。恢复自 2026-09-12 的原始单模型备份，保留拍打、按揉、松手回弹、旋转、换色、参数调节和图片导出。
+单模型 3D 软体互动网页。基于原始单模型版，v1.2.0 扩展臀部圆弧、减弱尖突并上提下缘，保留拍打、按揉、松手回弹、旋转、换色、参数调节和图片导出。
 
 访问：<https://Shay-sponge.github.io/pigu/>
 
@@ -54,6 +54,8 @@ Three.js r186 `WebGLRenderer` + Cannon ES，120 Hz 固定物理步长，12 个�
 模型基于 MakeHuman CC0 基础人体及 25 岁成年 morph，局部修形由本项目脚本生成。
 来源提交、参数、模型 SHA-256 见 `public/models/manifest.json`，
 许可见 `public/licenses/MakeHuman-CC0.txt`。这是视觉软体近似。
+`gluteShape` 记录圆润与提臀参数；相同输入可生成相同模型字节。
+模型请求附带本次构建标识，更新后不会继续复用前一版的浏览器模型缓存。
 
 已保存生成后的模型，日常构建不会重新下载或生成。需要重新生成时：
 
