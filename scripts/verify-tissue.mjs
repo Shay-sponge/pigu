@@ -72,7 +72,16 @@ const results = [];
   assert(medial < 0.000001, 'joined medial surface remains pinned');
   assert(ringBulge > 0.0005, 'compression has a surrounding outward volume cue');
   noInversions(g);
-  tissue.endGrab(); advance(tissue, 240);
+  const stationary = nearest(new Vector3(-0.8, 0.45, 0.95));
+  const stationaryNormal = new Vector3().fromBufferAttribute(g.attributes.normal, stationary);
+  const originalNormal = new Vector3().fromBufferAttribute(geometry.attributes.normal, stationary);
+  assert(stationaryNormal.distanceTo(originalNormal) < 0.001, 'press does not replace stationary skin shading with triangulation artifacts');
+  tissue.endGrab(); advance(tissue, 48);
+  assert(tissue.maxDisplacement < 0.004, 'released press recovers geometrically');
+  assert(new Vector3().fromBufferAttribute(g.attributes.normal, core)
+    .distanceTo(new Vector3().fromBufferAttribute(geometry.attributes.normal, core)) < 0.03,
+  'recovered contact has no residual dent shading');
+  advance(tissue, 192);
   restored(g, tissue);
   results.push({ test: 'local press / joined seam / compensating bulge / release', inward, remote, medial, ringBulge });
 }

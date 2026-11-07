@@ -25,6 +25,7 @@ export class TissuePhysics {
   private weights: Float32Array;
   private activeVertices: number[] = [];
   private initialNormals: Float32Array;
+  private restMeshNormals: Float32Array;
   private attr: BufferAttribute;
   private accumulator = 0;
   private grab: { point: Vector3; target: Vector3; normal: Vector3; contact: Contact } | null = null;
@@ -45,6 +46,9 @@ export class TissuePhysics {
     this.attr = geometry.attributes.position as BufferAttribute;
     this.rest = new Float32Array(this.attr.array);
     this.initialNormals = new Float32Array(geometry.attributes.normal.array);
+    geometry.computeVertexNormals();
+    this.restMeshNormals = new Float32Array(geometry.attributes.normal.array);
+    geometry.attributes.normal.array.set(this.initialNormals);
     const offsets = [[0, 0, 0], [-0.22, 0.02, 0], [0.22, 0.02, 0], [0, 0.26, -0.04], [0, -0.25, -0.03], [0, 0, 0.13]];
     for (const center of this.centers) {
       for (const [x, y, z] of offsets) {
@@ -260,6 +264,17 @@ export class TissuePhysics {
     this.attr.needsUpdate = true;
     this.normalFrame++;
     this.geometry.computeVertexNormals();
+    // Preserve the generator's smooth field shading. Use the change in mesh
+    // normals, so marching-cubes triangle spacing does not leave a false dent
+    // after the positions have recovered or change the stationary skin.
+    const normals = this.geometry.attributes.normal.array;
+    for (let i = 0; i < normals.length; i += 3) {
+      const x = normals[i] - this.restMeshNormals[i] + this.initialNormals[i];
+      const y = normals[i + 1] - this.restMeshNormals[i + 1] + this.initialNormals[i + 1];
+      const z = normals[i + 2] - this.restMeshNormals[i + 2] + this.initialNormals[i + 2];
+      const length = Math.hypot(x, y, z);
+      normals[i] = x / length; normals[i + 1] = y / length; normals[i + 2] = z / length;
+    }
   }
 
   reset() {
