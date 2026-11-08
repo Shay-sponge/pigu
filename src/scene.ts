@@ -255,7 +255,8 @@ export class SoftScene {
       const contact = this.restContact(hit);
       if (this.mode === 'slap') this.slap(contact, this.surfaceNormal(hit), event.clientX, event.clientY);
       else {
-        this.physics.startGrab(contact, this.surfaceNormal(hit));
+        const across = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0);
+        this.physics.startGrab(contact, this.surfaceNormal(hit), across);
         this.grabOffset.copy(contact).sub(hit.point);
         const normal = this.camera.getWorldDirection(new THREE.Vector3());
         this.grabPlane.setFromNormalAndCoplanarPoint(normal, hit.point);
@@ -293,6 +294,7 @@ export class SoftScene {
   setMode(mode: TouchMode) {
     this.releasePointer();
     this.mode = mode;
+    this.cursor.dataset.mode = mode;
     this.controls.enableRotate = mode === 'orbit';
     this.host.dataset.mode = mode;
   }
@@ -332,6 +334,7 @@ export class SoftScene {
       physicsSteps: this.physics?.steps, displacement: this.physics?.maxDisplacement,
       peakDisplacement: this.physics?.peakDisplacement, energy: this.physics?.energy,
       muscleDisplacement: this.physics?.muscleDisplacement, skinIndentation: this.physics?.skinIndentation,
+      skinFold: this.physics?.skinFold, skinShear: this.physics?.skinShear,
       settings: { softness: this.physics?.softness, bounce: this.physics?.bounce, strength: this.force, timeScale: this.speed, mode: this.mode },
       canvas: { width: this.renderer.domElement.width, height: this.renderer.domElement.height },
       camera: this.camera.position.toArray(),
