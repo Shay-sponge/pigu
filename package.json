@@ -1,6 +1,6 @@
 {
   "name": "pigu-soft-studio",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,6 +8,7 @@
     "assets": "node scripts/prepare-model.mjs",
     "check": "tsc --noEmit",
     "test:tissue": "node scripts/verify-tissue.mjs",
+    "test:model": "node scripts/verify-model.mjs",
     "build": "npm run check && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4188 --strictPort"
   },

@@ -1,4 +1,5 @@
 import { Color, MeshPhysicalMaterial, Vector3 } from 'three';
+import { garmentGLSL } from './swimwear';
 
 export const skinTones = ['#d59e80', '#bc8263', '#925a42', '#603b2d'];
 export const fabricTones = ['#6a9c8e', '#dd778c', '#e8e7dc', '#303638'];
@@ -40,20 +41,7 @@ export function createSkin() {
                    mix(mix(hashSkin(i+vec3(0,0,1)), hashSkin(i+vec3(1,0,1)), f.x),
                        mix(hashSkin(i+vec3(0,1,1)), hashSkin(i+vec3(1,1,1)), f.x), f.y), f.z);
       }
-      float garment(vec3 p) {
-        float side = clamp(abs(p.x) / 1.12, 0., 1.);
-        float waist = 1.02 + .09 * pow(side, 1.8);
-        float back = smoothstep(-.20, .25, p.z);
-        float belt = smoothstep(waist-.095, waist-.083, p.y);
-        float front = smoothstep(-.126 + 1.25*pow(side,1.5), -.114 + 1.25*pow(side,1.5), p.y);
-        // Follow the recessed medial surface. The back is a narrow string with
-        // a small upper triangle, rather than a broad V painted over the lobes.
-        float width = .024 + .12 * smoothstep(.68, 1.02, p.y);
-        float string = (1.-smoothstep(width-.004,width+.004,abs(p.x)))
-          * smoothstep(-.94,-.91,p.y);
-        float coverage = mix(front, string, back);
-        return max(belt, coverage) * (1.-smoothstep(waist, waist+.009, p.y));
-      }
+      ${garmentGLSL}
       float poreHeight(vec3 p) {
         return skinNoise(p * 175.) * .42 + skinNoise(p * 390.) * .17;
       }
@@ -62,10 +50,10 @@ export function createSkin() {
       #include <color_fragment>
       float fabric = garment(vAnatomy);
       float mottling = skinNoise(vAnatomy * 5.0) * .5 + skinNoise(vAnatomy * 18.) * .3 + skinNoise(vAnatomy * 57.) * .2;
-      vec3 skin = uSkin * (.92 + mottling * .15);
+      vec3 skin = uSkin * (.94 + mottling * .11);
       float cheek = exp(-pow((abs(vAnatomy.x)-.55)/.48,2.)-pow(vAnatomy.y/.45,2.)) * smoothstep(.12,.6,vAnatomy.z);
       skin *= mix(vec3(1.), vec3(1.035,.95,.955),cheek*.55);
-      float freckle = smoothstep(.83,.95,skinNoise(vAnatomy*95.)) * .095;
+      float freckle = smoothstep(.84,.95,skinNoise(vAnatomy*95.)) * .065;
       skin *= 1.-freckle;
       float flush = exp(-dot(vAnatomy-uContact,vAnatomy-uContact)*15.) * uFlush;
       skin = mix(skin,skin*vec3(1.04,.72,.72),flush*.55);

@@ -1,10 +1,8 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { BufferGeometry, DoubleSide, Float32BufferAttribute, MathUtils, MeshBasicMaterial, Ray, Triangle, Vector3 } from 'three';
+import { BufferGeometry, Float32BufferAttribute, MathUtils, Triangle } from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
-import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
-import { MeshBVH } from 'three-mesh-bvh';
 import { LoopSubdivision } from 'three-subdivide';
 
 const commit = 'a8bc2d54ff0ac92e78ff71431b1023eda42bf482';
@@ -12,20 +10,18 @@ const root = `https://raw.githubusercontent.com/makehumancommunity/makehuman/${c
 const targets = [
   ['macrodetails/caucasian-female-young.target', 0.5],
   ['macrodetails/asian-female-young.target', 0.5],
-  ['macrodetails/universal-female-young-averagemuscle-averageweight.target', 0.78],
-  ['macrodetails/universal-female-young-averagemuscle-maxweight.target', 0.22],
-  ['buttocks/buttocks-volume-incr.target', 0.5],
-  ['hip/hip-scale-horiz-incr.target', 0.16],
+  ['macrodetails/universal-female-young-averagemuscle-averageweight.target', 0.88],
+  ['macrodetails/universal-female-young-averagemuscle-maxweight.target', 0.12],
+  ['buttocks/buttocks-volume-incr.target', 0.32],
+  ['hip/hip-scale-horiz-incr.target', 0.08],
 ];
 const gluteShape = {
-  revision: 'joined-spherical-cheeks-v4',
-  centerX: 0.56, centerY: 0.32, centerZ: 0.16,
-  radiusX: 0.80, radiusY: 0.88, radiusZ: 0.88,
-  blendRadius: 0.20,
-  bridgeRadiusX: 0.38, bridgeRadiusY: 0.81, bridgeRadiusZ: 0.86,
-  grooveWidth: 0.055, grooveDepth: 0.065,
-  rearStart: -0.24, rearEnd: 0.02,
-  volumeResolution: 113,
+  revision: 'anatomical-continuous-v5',
+  method: 'Adult anatomical topology, restrained morphs, no primitive volume union',
+  subdivision: 3,
+  posteriorScale: 1.10,
+  stanceInward: 0.08,
+  lower: -1.48, upper: 1.85,
 };
 await mkdir('.cache/model', { recursive: true });
 await mkdir('public/models', { recursive: true });
@@ -63,11 +59,16 @@ const cropped = [], texcoords = [];
 for (let i = 0; i < pos.count; i += 3) {
   const x = (pos.getX(i) + pos.getX(i + 1) + pos.getX(i + 2)) / 3;
   const y = (pos.getY(i) + pos.getY(i + 1) + pos.getY(i + 2)) / 3;
-  if (y < -3.8 || y > 1.8 || Math.abs(x) > 2.65) continue;
+  if (y < -3.8 || y > 2.7 || Math.abs(x) > 2.65) continue;
   for (let j = i; j < i + 3; j++) {
-    const px = -pos.getX(j) * 0.72;
+    let px = -pos.getX(j) * 0.72;
     const py = (pos.getY(j) + 0.8) * 0.72;
-    const pz = -pos.getZ(j) * 0.72;
+    let pz = -pos.getZ(j) * 0.72;
+    // Gentle coordinate changes preserve the native curvature and anatomical
+    // folds; no local lump, medial bridge or spherical reconstruction.
+    pz *= 1 + (gluteShape.posteriorScale - 1) * MathUtils.smootherstep(pz, -0.06, 0.28);
+    px -= Math.tanh(px / 0.24) * gluteShape.stanceInward
+      * (1 - MathUtils.smootherstep(py, -0.65, 0.12));
     cropped.push(px, py, pz);
     texcoords.push(uv.getX(j), uv.getY(j));
   }
@@ -76,86 +77,21 @@ const base = new BufferGeometry();
 base.setAttribute('position', new Float32BufferAttribute(cropped, 3));
 base.setAttribute('uv', new Float32BufferAttribute(texcoords, 2));
 base.computeVertexNormals();
-const subdivided = LoopSubdivision.modify(mergeVertices(base), 3, {
+base.deleteAttribute('uv');
+base.deleteAttribute('normal');
+const subdivision = LoopSubdivision.modify(mergeVertices(base, 1e-6), gluteShape.subdivision, {
   split: false, uvSmooth: true, preserveEdges: false, flatOnly: false, maxTriangles: 180000,
 });
-// Rebuild the outer surface of a smooth volume union. A vertex warp cannot
-// remove the original folded under-glute topology without creating thin lips.
-const distanceMesh = subdivided.clone();
-distanceMesh.deleteAttribute('uv');
-distanceMesh.deleteAttribute('normal');
-const distanceGeometry = mergeVertices(distanceMesh, 1e-5);
-const bvh = new MeshBVH(distanceGeometry);
-const triangle = new Triangle(), normal = new Vector3();
-const nearest = { point: new Vector3() };
-const signRay = new Ray(new Vector3(), new Vector3(0, 0, 1));
-const distanceScale = Math.min(gluteShape.radiusX, gluteShape.radiusY, gluteShape.radiusZ);
-function volumeDistance(point) {
-  const hit = bvh.closestPointToPoint(point, nearest);
-  // A ray exit determines inside/outside even in the concave central crease;
-  // the nearest triangle's normal alone is ambiguous there.
-  signRay.origin.copy(point);
-  const exit = bvh.raycastFirst(signRay, DoubleSide);
-  const torso = hit.distance * (exit && exit.face.normal.z > 0 ? -1 : 1);
-  // A central volume joins the lobes without flattening their round silhouette.
-  // The narrow shallow cleft replaces the old wide, excluded medial region.
-  const rear = MathUtils.smootherstep(point.z, gluteShape.rearStart, gluteShape.rearEnd);
-  const groove = gluteShape.grooveDepth * Math.exp(-((point.x / gluteShape.grooveWidth) ** 2))
-    * MathUtils.smootherstep(point.y, -0.74, -0.28)
-    * (1 - MathUtils.smootherstep(point.y, 0.90, 1.24)) * rear;
-  const posteriorZ = point.z + groove;
-  const sphere = (Math.hypot(
-    (Math.abs(point.x) - gluteShape.centerX) / gluteShape.radiusX,
-    (point.y - gluteShape.centerY) / gluteShape.radiusY,
-    (posteriorZ - gluteShape.centerZ) / gluteShape.radiusZ,
-  ) - 1) * distanceScale;
-  const bridge = (Math.hypot(
-    point.x / gluteShape.bridgeRadiusX,
-    (point.y - gluteShape.centerY) / gluteShape.bridgeRadiusY,
-    (posteriorZ - gluteShape.centerZ) / gluteShape.bridgeRadiusZ,
-  ) - 1) * gluteShape.bridgeRadiusX;
-  const join = Math.max(0.12 - Math.abs(sphere - bridge), 0) / 0.12;
-  const cheeks = Math.min(sphere, bridge) - 0.12 * join * join * 0.25;
-  const h = Math.max(gluteShape.blendRadius - Math.abs(torso - cheeks), 0) / gluteShape.blendRadius;
-  const union = Math.min(torso, cheeks) - gluteShape.blendRadius * h * h * 0.25;
-  return MathUtils.lerp(torso, union, rear);
-}
-const resolution = gluteShape.volumeResolution;
-const volumeHalfSize = new Vector3(1.6, 1.8, 1.4);
-const volume = new MarchingCubes(resolution, new MeshBasicMaterial(), false, false, 180000);
-volume.isolation = 0;
-const sample = new Vector3();
-for (let z = 0; z < resolution; z++) {
-  sample.z = (z / resolution * 2 - 1) * volumeHalfSize.z;
-  for (let y = 0; y < resolution; y++) {
-    sample.y = (y / resolution * 2 - 1) * volumeHalfSize.y;
-    for (let x = 0; x < resolution; x++) {
-      sample.x = (x / resolution * 2 - 1) * volumeHalfSize.x;
-      volume.field[z * resolution * resolution + y * resolution + x] = -volumeDistance(sample);
-    }
-  }
-  if (z % 16 === 0) console.log(`Sampling rounded volume: ${z}/${resolution}`);
-}
-volume.update();
-if (volume.count >= 180000 * 3) throw new Error('Rounded volume exceeded triangle capacity');
-const triangles = new BufferGeometry();
-const surface = new Float32Array(volume.count * 3), surfaceUV = new Float32Array(volume.count * 2);
-const surfaceNormals = new Float32Array(volume.count * 3);
-for (let i = 0; i < volume.count; i++) {
-  for (let axis = 0; axis < 3; axis++) surface[i * 3 + axis] = volume.positionArray[i * 3 + axis] * volumeHalfSize.getComponent(axis);
-  // Field gradients shade the continuous volume, avoiding stripes from the
-  // uneven triangle areas produced by marching cubes. Correct nonuniform scale.
-  normal.fromArray(volume.normalArray, i * 3).divide(volumeHalfSize).normalize().toArray(surfaceNormals, i * 3);
-  surfaceUV[i * 2] = surface[i * 3] / (volumeHalfSize.x * 2) + 0.5;
-  surfaceUV[i * 2 + 1] = surface[i * 3 + 1] / (volumeHalfSize.y * 2) + 0.5;
-}
-triangles.setAttribute('position', new Float32BufferAttribute(surface, 3));
-triangles.setAttribute('uv', new Float32BufferAttribute(surfaceUV, 2));
-triangles.setAttribute('normal', new Float32BufferAttribute(surfaceNormals, 3));
-volume.geometry.dispose();
-volume.material.dispose();
-const lower = -1.48, upper = 1.43;
-const clipped = [], clippedUV = [], clippedNormals = [], top = [], bottomLeft = [], bottomRight = [];
+// Keep the anatomical surface flow through sacrum, gluteal fold and thighs.
+// Subdivision smooths that topology without replacing the pelvis with spheres.
+subdivision.deleteAttribute('normal');
+subdivision.deleteAttribute('uv');
+const subdivided = mergeVertices(subdivision, 1e-6);
+subdivided.computeVertexNormals();
+const triangles = subdivided.index ? subdivided.toNonIndexed() : subdivided;
+const triangle = new Triangle();
+const { lower, upper } = gluteShape;
+const clipped = [], clippedUV = [], top = [], bottomLeft = [], bottomRight = [];
 function clip(poly, height, above) {
   const out = [];
   for (let i = 0; i < poly.length; i++) {
@@ -172,11 +108,10 @@ function clip(poly, height, above) {
   }
   return out;
 }
-const tp = triangles.attributes.position, tu = triangles.attributes.uv, tn = triangles.attributes.normal;
+const tp = triangles.attributes.position;
 for (let i = 0; i < tp.count; i += 3) {
   let poly = [0, 1, 2].map(j => [
-    tp.getX(i+j), tp.getY(i+j), tp.getZ(i+j), tu.getX(i+j), tu.getY(i+j),
-    tn.getX(i+j), tn.getY(i+j), tn.getZ(i+j),
+    tp.getX(i+j), tp.getY(i+j), tp.getZ(i+j), tp.getX(i+j) / 3 + 0.5, tp.getY(i+j) / 4 + 0.5,
   ]);
   poly = clip(clip(poly, lower, true), upper, false);
   for (const p of poly) {
@@ -187,15 +122,13 @@ for (let i = 0; i < tp.count; i += 3) {
     for (const p of [poly[0], poly[j], poly[j+1]]) {
       clipped.push(...p.slice(0, 3));
       clippedUV.push(...p.slice(3, 5));
-      clippedNormals.push(...p.slice(5));
     }
   }
 }
 const geometry = new BufferGeometry();
 geometry.setAttribute('position', new Float32BufferAttribute(clipped, 3));
 geometry.setAttribute('uv', new Float32BufferAttribute(clippedUV, 2));
-geometry.setAttribute('normal', new Float32BufferAttribute(clippedNormals, 3));
-const finalGeometry = mergeVertices(geometry, 1e-7);
+const finalGeometry = mergeVertices(geometry, 1e-6);
 const validIndices = [];
 const fp = finalGeometry.attributes.position, fi = finalGeometry.index;
 for (let i = 0; i < fi.count; i += 3) {
@@ -205,6 +138,7 @@ for (let i = 0; i < fi.count; i += 3) {
   if (triangle.getArea() > 1e-14) validIndices.push(fi.getX(i), fi.getX(i + 1), fi.getX(i + 2));
 }
 finalGeometry.setIndex(validIndices);
+finalGeometry.computeVertexNormals();
 finalGeometry.normalizeNormals();
 finalGeometry.computeBoundingBox();
 const caps = [];

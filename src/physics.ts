@@ -40,11 +40,21 @@ export class TissuePhysics {
   muscleDisplacement = 0;
   skinIndentation = 0;
   steps = 0;
-  readonly centers = [new Vector3(-0.56, 0.28, 0.93), new Vector3(0.56, 0.28, 0.93)];
+  readonly centers = [new Vector3(-0.56, 0.28, 0), new Vector3(0.56, 0.28, 0)];
 
   constructor(private geometry: BufferGeometry) {
     this.attr = geometry.attributes.position as BufferAttribute;
     this.rest = new Float32Array(this.attr.array);
+    // Locate tissue anchors from this model's posterior surface. Primitive
+    // model coordinates are not valid after an anatomical rebuild.
+    for (const center of this.centers) {
+      let best = Infinity;
+      for (let i = 0; i < this.attr.count; i++) {
+        if (this.rest[i * 3 + 2] < 0) continue;
+        const d = (this.rest[i * 3] - center.x) ** 2 + (this.rest[i * 3 + 1] - center.y) ** 2;
+        if (d < best) { best = d; center.z = this.rest[i * 3 + 2]; }
+      }
+    }
     this.initialNormals = new Float32Array(geometry.attributes.normal.array);
     geometry.computeVertexNormals();
     this.restMeshNormals = new Float32Array(geometry.attributes.normal.array);
@@ -52,7 +62,7 @@ export class TissuePhysics {
     const offsets = [[0, 0, 0], [-0.22, 0.02, 0], [0.22, 0.02, 0], [0, 0.26, -0.04], [0, -0.25, -0.03], [0, 0, 0.13]];
     for (const center of this.centers) {
       for (const [x, y, z] of offsets) {
-        const anchor = new Vec3(center.x + x, center.y + y, center.z + z);
+        const anchor = new Vec3(center.x + x, center.y + y, center.z - 0.08 + z);
         const fixed = new Body({ mass: 0, position: anchor });
         const node = new Body({ mass: 0.13, position: anchor, shape: new Sphere(0.035), linearDamping: 0.03, collisionFilterGroup: 0 });
         this.world.addBody(fixed);
@@ -75,10 +85,12 @@ export class TissuePhysics {
       const x = this.rest[i * 3], y = this.rest[i * 3 + 1], z = this.rest[i * 3 + 2];
       const left = Math.exp(-((x + 0.56) ** 2 / 0.38 + (y - 0.18) ** 2 / 0.45));
       const right = Math.exp(-((x - 0.56) ** 2 / 0.38 + (y - 0.18) ** 2 / 0.45));
-      const backMask = MathUtils.smoothstep(z, -0.12, 0.46);
+      const backMask = MathUtils.smoothstep(z, -0.05, 0.38)
+        * MathUtils.smootherstep(y, -0.62, -0.25)
+        * (1 - MathUtils.smootherstep(y, 0.72, 1.16));
       // Pin the medial tissue to the common underlying body. A unilateral pull
       // cannot turn the narrow cleft into an opening between independent balls.
-      const seam = MathUtils.smootherstep(Math.abs(x), 0.10, 0.43);
+      const seam = MathUtils.smootherstep(Math.abs(x), 0.075, 0.34);
       const envelope = Math.min(1, Math.max(left, right) * 1.25) * backMask * seam;
       if (envelope < 0.003) continue;
       this.activeVertices.push(i);

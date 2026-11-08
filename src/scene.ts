@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { TissuePhysics, type TouchMode } from './physics';
 import { createSkin } from './material';
+import { createSwimwear } from './swimwear';
 
 // Couple model caches to the source fingerprint, including the mesh bytes.
 const modelUrl = `${import.meta.env.BASE_URL}models/adult-torso.json?v=${__PIGU_BUILD__}`;
@@ -38,6 +39,7 @@ export class SoftScene {
   private pointerTime = 0;
   private activePointer: number | null = null;
   private grabPlane = new THREE.Plane();
+  private grabOffset = new THREE.Vector3();
   private wasOrbiting = false;
   private isDown = false;
   private previous = performance.now();
@@ -61,10 +63,10 @@ export class SoftScene {
     this.renderer.domElement.setAttribute('aria-label', 'Slap or squish the 3D model');
     this.renderer.domElement.tabIndex = 0;
     this.host.append(this.renderer.domElement);
-    this.camera = new THREE.PerspectiveCamera(33, 1, 0.1, 60);
+    this.camera = new THREE.PerspectiveCamera(35, 1, 0.1, 60);
     this.camera.position.set(2.35, 1.05, 7.6);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.set(0, 0.05, 0);
+    this.controls.target.set(0, 0.23, 0);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
     this.controls.enablePan = false;
@@ -135,6 +137,10 @@ export class SoftScene {
     const cap = new THREE.Mesh(caps, new THREE.MeshStandardMaterial({ color: '#b5c1ad', roughness: 0.8, side: THREE.DoubleSide }));
     this.scene.add(cap);
     this.physics = new TissuePhysics(geometry);
+    const swimsuit = createSwimwear(geometry, this.skin.uniforms.uFabric);
+    const clothing = new THREE.Mesh(swimsuit.geometry, swimsuit.material);
+    clothing.receiveShadow = true;
+    this.scene.add(clothing);
     await this.renderer.compileAsync(this.scene, this.camera);
     this.ready = true;
     this.previous = performance.now();
@@ -145,7 +151,7 @@ export class SoftScene {
     const width = this.host.clientWidth, height = this.host.clientHeight;
     this.renderer.setSize(width, height);
     this.camera.aspect = width / height;
-    this.camera.fov = width <= 820 ? 38 : 33;
+    this.camera.fov = width <= 820 ? 38 : 35;
     // Reserve fixed space for the interaction dock and the mobile title.
     this.camera.setViewOffset(width, height, width > 820 ? width * 0.01 : 0, width > 820 ? height * 0.025 : -height * 0.018, width, height);
     const distance = width <= 820
@@ -173,6 +179,20 @@ export class SoftScene {
       .transformDirection(this.mesh.matrixWorld);
   }
 
+  private restContact(hit: THREE.Intersection) {
+    const face = hit.face!;
+    const position = this.mesh.geometry.attributes.position;
+    const rest = this.mesh.geometry.attributes.restPosition;
+    const bary = new THREE.Vector3();
+    THREE.Triangle.getBarycoord(hit.point,
+      new THREE.Vector3().fromBufferAttribute(position, face.a),
+      new THREE.Vector3().fromBufferAttribute(position, face.b),
+      new THREE.Vector3().fromBufferAttribute(position, face.c), bary);
+    return new THREE.Vector3().fromBufferAttribute(rest, face.a).multiplyScalar(bary.x)
+      .addScaledVector(new THREE.Vector3().fromBufferAttribute(rest, face.b), bary.y)
+      .addScaledVector(new THREE.Vector3().fromBufferAttribute(rest, face.c), bary.z);
+  }
+
   private slap(point: THREE.Vector3, normal: THREE.Vector3, x: number, y: number) {
     // Screen velocity follows the camera's right/up axes at every view angle.
     const velocity = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0).multiplyScalar(this.pointerSpeed.x)
@@ -189,6 +209,7 @@ export class SoftScene {
     this.activePointer = null;
     this.physics?.endGrab();
     this.cursor.classList.remove('down');
+    this.controls.enabled = true;
     this.controls.enableRotate = this.mode === 'orbit';
     this.wasOrbiting = false;
   }
@@ -196,6 +217,7 @@ export class SoftScene {
   private bindPointer() {
     const canvas = this.renderer.domElement;
     canvas.addEventListener('pointermove', event => {
+      if (this.activePointer !== null && event.pointerId !== this.activePointer) return;
       this.cursor.style.left = `${event.clientX}px`;
       this.cursor.style.top = `${event.clientY}px`;
       const now = performance.now();
@@ -210,7 +232,7 @@ export class SoftScene {
       canvas.style.cursor = active && event.pointerType === 'mouse' ? 'none' : this.mode === 'orbit' ? 'grab' : 'default';
       if (this.isDown && this.mode === 'grab' && !this.wasOrbiting) {
         const target = new THREE.Vector3();
-        if (this.raycaster.ray.intersectPlane(this.grabPlane, target)) this.physics.moveGrab(target);
+        if (this.raycaster.ray.intersectPlane(this.grabPlane, target)) this.physics.moveGrab(target.add(this.grabOffset));
       }
     });
     canvas.addEventListener('pointerdown', event => {
@@ -228,17 +250,23 @@ export class SoftScene {
         return;
       }
       this.controls.enableRotate = false;
+      this.controls.enabled = false;
       this.cursor.classList.add('down');
-      if (this.mode === 'slap') this.slap(hit.point, this.surfaceNormal(hit), event.clientX, event.clientY);
+      const contact = this.restContact(hit);
+      if (this.mode === 'slap') this.slap(contact, this.surfaceNormal(hit), event.clientX, event.clientY);
       else {
-        this.physics.startGrab(hit.point, this.surfaceNormal(hit));
+        this.physics.startGrab(contact, this.surfaceNormal(hit));
+        this.grabOffset.copy(contact).sub(hit.point);
         const normal = this.camera.getWorldDirection(new THREE.Vector3());
         this.grabPlane.setFromNormalAndCoplanarPoint(normal, hit.point);
       }
     }, { capture: true });
-    canvas.addEventListener('pointerup', () => this.releasePointer());
-    canvas.addEventListener('pointercancel', () => this.releasePointer());
-    canvas.addEventListener('lostpointercapture', () => this.releasePointer());
+    const releaseActive = (event: PointerEvent) => {
+      if (event.pointerId === this.activePointer) this.releasePointer();
+    };
+    canvas.addEventListener('pointerup', releaseActive);
+    canvas.addEventListener('pointercancel', releaseActive);
+    canvas.addEventListener('lostpointercapture', releaseActive);
     canvas.addEventListener('pointerleave', () => this.cursor.classList.remove('active'));
     window.addEventListener('blur', () => this.releasePointer());
     document.addEventListener('visibilitychange', () => {
@@ -257,7 +285,7 @@ export class SoftScene {
         const p = hit.point;
         const screen = p.clone().project(this.camera);
         const rect = canvas.getBoundingClientRect();
-        this.slap(p, this.surfaceNormal(hit), rect.left + (screen.x + 1) * rect.width / 2, rect.top + (1 - screen.y) * rect.height / 2);
+        this.slap(this.restContact(hit), this.surfaceNormal(hit), rect.left + (screen.x + 1) * rect.width / 2, rect.top + (1 - screen.y) * rect.height / 2);
       }
     });
   }

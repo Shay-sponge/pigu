@@ -1,6 +1,6 @@
 # Pigu · The Soft Studio
 
-单模型 3D 软体互动网页。v1.4.1 保留饱满的球面轮廓，将两侧连接为连续表面，丁字裤贴合窄臀沟；按压产生局部凹陷及周围轻微鼓起，肌肉层带动柔和回弹。回弹过程保留体积场的平滑法线，避免位置恢复后残留凹坑阴影。
+单模型 3D 软体互动网页。v1.5.0 按成年泳装人物参考重建腰臀与大腿结构，保留连续人体拓扑、自然臀褶和腰线，使用独立比基尼布料表面、包边与缝线。局部按压、揉捏和回弹与新的解剖结构同步。
 
 访问：<https://Shay-sponge.github.io/pigu/>
 
@@ -51,15 +51,15 @@ Three.js r186 `WebGLRenderer` + Cannon ES，120 Hz 固定物理步长，12 个�
 拍打沿实际接触面的法线向内作用；皮肤层用局部压陷和补偿鼓起表现体积感，肌肉层随拉伸逐渐增加阻力。
 速度在三个方向均有阻尼，中线固定于共同躯干；参数最大时也保留衰减，避免持续晃动或拉开两侧。
 运行时读取 `public/models/adult-torso.json` 和 `torso-caps.json`；
-固定泳装由程序材质绘制。全部运行资源随网站发布，不依赖外部 CDN。
+泳装为独立布料表面，具有厚度、包边与缝线；与人体共享实时顶点和法线属性，局部形变没有额外一帧延迟。全部运行资源随网站发布，不依赖外部 CDN。
 
-模型基于 MakeHuman CC0 基础人体及 25 岁成年 morph。生成脚本将两个近球体、中央连接体与身体平滑合并，再重新生成连续外表面。
-球体在竖直和前后方向使用相同半径，保留完整的下半圆弧；通过体积合并处理与大腿的连接，避免旧臀沟被拉成薄片。
-`three-mesh-bvh` 仅在生成模型时用于距离和射线查询，不进入浏览器运行包。
+模型基于 MakeHuman CC0 基础人体及 25 岁成年 morph。生成脚本使用克制的体形参数、连续人体曲面细分、轻微后向比例调整及较自然的腿部站距，保持骨盆、腰部、臀褶与大腿的原始连接关系。
+体形参考 [Voda Swim 成人比基尼产品摄影](https://www.vodaswim.com/products/two-tab-bottom) 和 [BONDI BORN 泳装产品多角度摄影](https://bondiborn.com.au/products/jayde-bikini-bottom-mocha-pearl)，仅用于形态与布料观察；照片不随网站发布，不作为模型纹理，也没有做真人身份复刻或扫描重建。
 来源提交、参数、模型 SHA-256 见 `public/models/manifest.json`，
 许可见 `public/licenses/MakeHuman-CC0.txt`。这是视觉软体近似，未使用人体组织实测参数，也不提供硬件力反馈。
 参考 Three.js [`physics_ammo_volume`](https://github.com/mrdoob/three.js/blob/r160/examples/physics_ammo_volume.html) 的软体阻尼、体积和刚度区分，以及 [XPBD](https://matthias-research.github.io/pages/publications/XPBD.pdf) 中形变与耗散的思路；本项目并未改为 Ammo 或 XPBD 求解器。
-`gluteShape` 记录球体中心、半径、连接范围及体积采样精度；相同输入可生成相同模型字节。
+`gluteShape` 记录拓扑方法、细分、比例调整与截面；相同输入可生成相同模型字节。
+接触点通过被点击三角形的重心坐标映射回原始表面，重复点击已形变区域时仍跟随同一块皮肤。肌肉节点根据本次模型实际后表面定位，腰部和大腿过渡区的位移逐渐衰减。
 模型请求附带本次构建标识，更新后不会继续复用前一版的浏览器模型缓存。
 
 已保存生成后的模型，日常构建不会重新下载或生成。需要重新生成时：
@@ -73,6 +73,7 @@ npm run build
 
 ```sh
 npm run check
+npm run test:model
 npm run test:tissue
 npm run build
 ```

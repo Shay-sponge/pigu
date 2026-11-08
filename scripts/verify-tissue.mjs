@@ -65,7 +65,7 @@ const results = [];
   for (let i = 0; i < rest.length / 3; i++) {
     if (Math.abs(rest[i * 3]) < 0.025) medial = Math.max(medial, displacement(g, i).length());
     const d = new Vector3().fromArray(rest, i * 3).sub(hit.point);
-    if (d.length() > 0.38 && d.length() < 0.62 && rest[i * 3 + 2] > 0.75) {
+    if (d.length() > 0.38 && d.length() < 0.62 && rest[i * 3 + 2] > hit.point.z - 0.25) {
       ringBulge = Math.max(ringBulge, displacement(g, i).dot(normal));
     }
   }
