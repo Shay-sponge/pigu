@@ -1,13 +1,13 @@
 # Pigu · The Soft Studio
 
-单模型 3D 软体互动网页。v1.6.0 保留已确认的 1.5.0 人体模型，调整皮肤交互：捏合产生小皮褶和两侧浅压痕，拖动表现局部牵拉，拍打仅有短促浅压缩和有限余动。
+单模型 3D 软体互动网页。v1.5.0 按成年泳装人物参考重建腰臀与大腿结构，保留连续人体拓扑、自然臀褶和腰线，使用独立比基尼布料表面、包边与缝线。局部按压、揉捏和回弹与新的解剖结构同步。
 
 访问：<https://Shay-sponge.github.io/pigu/>
 
 ## 操作
 
 - **Slap**：点击或触摸模型；画布获得焦点后也可按空格或 Enter。
-- **Squish**：按住轻捏出小皮褶，拖动牵拉表层；越拉越难继续伸长，松开后先快速恢复再缓慢收尾。
+- **Squish**：按住会局部压陷，拖动可揉捏，松开后恢复。
 - **Orbit**：拖动旋转；Back / Three-quarter / Side 切换视角。
 - 右侧面板调节软度、回弹、力度、配色及慢动作；手机点右上角设置。
 - 声音默认关闭，点击声音按钮开启；相机按钮保存当前画布；Reset studio 重置。
@@ -48,8 +48,7 @@ git push origin main
 ## 技术与模型来源
 
 Three.js r186 `WebGLRenderer` + Cannon ES，120 Hz 固定物理步长，12 个肌肉弹簧节点及局部皮肤压陷层。
-拍打沿接触面法线短促向内作用，表面压缩较浅；捏合使用两个浅接触区和中间的局部皮褶，牵拉通过切向位移表现。肌肉层的位移和冲量均减小。
-表层采用快速弹性响应与少量延迟恢复的组合，快速项用解析阻尼振子积分，避免时间步长把短暂冲击吞掉。切向牵拉随位移增加逐渐受限。
+拍打沿实际接触面的法线向内作用；皮肤层用局部压陷和补偿鼓起表现体积感，肌肉层随拉伸逐渐增加阻力。
 速度在三个方向均有阻尼，中线固定于共同躯干；参数最大时也保留衰减，避免持续晃动或拉开两侧。
 运行时读取 `public/models/adult-torso.json` 和 `torso-caps.json`；
 泳装为独立布料表面，具有厚度、包边与缝线；与人体共享实时顶点和法线属性，局部形变没有额外一帧延迟。全部运行资源随网站发布，不依赖外部 CDN。
@@ -59,7 +58,6 @@ Three.js r186 `WebGLRenderer` + Cannon ES，120 Hz 固定物理步长，12 个�
 来源提交、参数、模型 SHA-256 见 `public/models/manifest.json`，
 许可见 `public/licenses/MakeHuman-CC0.txt`。这是视觉软体近似，未使用人体组织实测参数，也不提供硬件力反馈。
 参考 Three.js [`physics_ammo_volume`](https://github.com/mrdoob/three.js/blob/r160/examples/physics_ammo_volume.html) 的软体阻尼、体积和刚度区分，以及 [XPBD](https://matthias-research.github.io/pages/publications/XPBD.pdf) 中形变与耗散的思路；本项目并未改为 Ammo 或 XPBD 求解器。
-皮肤行为参考 [Everett & Sommers 的黏弹性综述](https://pmc.ncbi.nlm.nih.gov/articles/PMC3465619/)、[Sachs 等的分层皮肤模型](https://pmc.ncbi.nlm.nih.gov/articles/PMC8154831/) 和 [Flynn & McCormack 的压缩起褶研究](https://doi.org/10.1016/j.jbiomech.2009.10.007)。这些文献支持响应类型；局部形变场、幅度和恢复时间为交互调参，没有声称复现论文中的有限元求解或临床标定参数。
 `gluteShape` 记录拓扑方法、细分、比例调整与截面；相同输入可生成相同模型字节。
 接触点通过被点击三角形的重心坐标映射回原始表面，重复点击已形变区域时仍跟随同一块皮肤。肌肉节点根据本次模型实际后表面定位，腰部和大腿过渡区的位移逐渐衰减。
 模型请求附带本次构建标识，更新后不会继续复用前一版的浏览器模型缓存。

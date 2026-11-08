@@ -6,21 +6,12 @@ export type TouchMode = 'slap' | 'grab' | 'orbit';
 type Contact = {
   point: Vector3;
   normal: Vector3;
-  across: Vector3;
-  along: Vector3;
   depth: number;
   velocity: number;
-  delayed: number;
   target: number;
   held: boolean;
-  pinch: boolean;
-  shear: Vector3;
-  shearVelocity: Vector3;
-  shearTarget: Vector3;
   vertices: number[];
   profile: number[];
-  gather: number[];
-  shearWeights: number[];
 };
 
 export class TissuePhysics {
@@ -48,8 +39,6 @@ export class TissuePhysics {
   peakDisplacement = 0;
   muscleDisplacement = 0;
   skinIndentation = 0;
-  skinFold = 0;
-  skinShear = 0;
   steps = 0;
   readonly centers = [new Vector3(-0.56, 0.28, 0), new Vector3(0.56, 0.28, 0)];
 
@@ -121,63 +110,41 @@ export class TissuePhysics {
   configure(softness: number, bounce: number) {
     this.softness = MathUtils.clamp(softness, 0, 1);
     this.bounce = MathUtils.clamp(bounce, 0, 1);
-    this.muscleStiffness = MathUtils.lerp(108, 62, this.softness);
+    this.muscleStiffness = MathUtils.lerp(85, 34, this.softness);
     // Damping ratio stays positive even at the bounciest setting. This damps
     // all velocity components; a zero-length spring only damps radially.
-    const ratio = MathUtils.lerp(1.05, 0.67, this.bounce);
+    const ratio = MathUtils.lerp(0.90, 0.48, this.bounce);
     this.muscleDamping = 2 * ratio * Math.sqrt(this.muscleStiffness * 0.13);
     for (const spring of this.springs) spring.stiffness = this.muscleStiffness;
   }
 
-  private contact(point: Vector3, normal: Vector3, held: boolean, strength: number, tangent?: Vector3) {
+  private contact(point: Vector3, normal: Vector3, held: boolean, strength: number) {
     const outward = normal.clone().normalize();
-    const kick = (0.005 + strength * 0.008) * 58 * 2;
+    const kick = (0.04 + strength * 0.09) * 48 * 1.9;
     // Repeated taps at the same contact reinforce its motion rather than
     // stacking multiple independent dents through the same skin.
-    const previous = this.contacts.find(c => c.pinch === held && !c.held
-      && c.point.distanceToSquared(point) < (held ? 0.08 : 0.18) ** 2 && c.normal.dot(outward) > 0.85);
+    const previous = !held && this.contacts.find(c => !c.held && c.point.distanceToSquared(point) < 0.18 ** 2 && c.normal.dot(outward) > 0.85);
     if (previous) {
-      if (held) {
-        previous.held = true;
-        previous.target = 0.017 + this.softness * 0.012;
-        previous.shearTarget.set(0, 0, 0);
-      } else previous.velocity = Math.min(1.7, previous.velocity + kick);
+      previous.velocity = Math.min(12, previous.velocity + kick);
       return previous;
     }
-    const across = tangent?.clone() ?? new Vector3(1, 0, 0);
-    across.addScaledVector(outward, -across.dot(outward));
-    if (across.lengthSq() < 0.001) across.set(0, 1, 0).addScaledVector(outward, -outward.y);
-    across.normalize();
-    const c: Contact = { point: point.clone(), normal: outward, across,
-      along: new Vector3().crossVectors(outward, across).normalize(),
-      depth: 0, velocity: 0, delayed: 0, target: held ? 0.017 + this.softness * 0.012 : 0,
-      held, pinch: held, shear: new Vector3(), shearVelocity: new Vector3(), shearTarget: new Vector3(),
-      vertices: [], profile: [], gather: [], shearWeights: [] };
-    const radiusX = held ? 0.115 : 0.28;
-    const radiusY = held ? 0.18 : 0.22;
+    const c: Contact = { point: point.clone(), normal: outward, depth: 0, velocity: 0,
+      target: held ? 0.06 + this.softness * 0.045 : 0, held, vertices: [], profile: [] };
+    const radius = 0.18 + this.softness * 0.055;
     for (const i of this.activeVertices) {
       const dx = this.rest[i * 3] - point.x, dy = this.rest[i * 3 + 1] - point.y, dz = this.rest[i * 3 + 2] - point.z;
       const axial = dx * c.normal.x + dy * c.normal.y + dz * c.normal.z;
-      const u = (dx * c.across.x + dy * c.across.y + dz * c.across.z) / radiusX;
-      const v = (dx * c.along.x + dy * c.along.y + dz * c.along.z) / radiusY;
-      const radius2 = u * u + v * v;
+      const radius2 = Math.max(0, dx * dx + dy * dy + dz * dz - axial * axial) / (radius * radius);
       const alignment = Math.max(0, this.initialNormals[i * 3] * c.normal.x
         + this.initialNormals[i * 3 + 1] * c.normal.y + this.initialNormals[i * 3 + 2] * c.normal.z);
       const seam = MathUtils.smootherstep(Math.abs(this.rest[i * 3]), 0.10, 0.28);
-      const envelope = Math.exp(-(axial * axial) / 0.025) * alignment * seam;
-      // Opposing finger pads gather a narrow fold between shallow contact
-      // marks. A palm contact instead produces broad, shallow compression.
-      // These are reduced surface modes, not a calibrated FEM skin solver.
-      const ridge = Math.exp(-u * u / 0.45 - v * v);
-      const pads = Math.exp(-(((u - 1.12) / 0.52) ** 2) - v * v)
-        + Math.exp(-(((u + 1.12) / 0.52) ** 2) - v * v);
-      const profile = held
-        ? (0.90 * ridge - 0.36 * pads) * envelope
-        : (-Math.exp(-radius2 * radius2) + 0.12 * Math.exp(-radius2 / 3)) / 0.88 * envelope;
-      const gather = held ? -0.32 * u * Math.exp(-radius2 * 0.7) * envelope : 0;
-      const shearWeight = held ? Math.exp(-radius2 * 0.35) * envelope : 0;
-      if (Math.max(Math.abs(profile), Math.abs(gather), shearWeight) < 0.001) continue;
-      c.vertices.push(i); c.profile.push(profile); c.gather.push(gather); c.shearWeights.push(shearWeight);
+      // In the tangent plane the two Gaussians have equal, opposite integrals:
+      // a small compensating bulge surrounds the central indentation. This is
+      // an approximate volume cue, not a finite-element tissue simulation.
+      const profile = (-Math.exp(-radius2) + 0.25 * Math.exp(-radius2 / 4)) / 0.75
+        * Math.exp(-(axial * axial) / 0.06) * alignment * seam;
+      if (Math.abs(profile) < 0.001) continue;
+      c.vertices.push(i); c.profile.push(profile);
     }
     if (!held) c.velocity = kick;
     if (this.contacts.length >= 6) this.contacts.splice(this.contacts.findIndex(contact => !contact.held), 1);
@@ -197,37 +164,20 @@ export class TissuePhysics {
       const d2 = (point.x - a.x) ** 2 + (point.y - a.y) ** 2 + (point.z - a.z) ** 2 * 0.35;
       const strain = node.position.distanceTo(a) / 0.10;
       const resistance = 1 / (1 + strain * strain);
-      node.applyImpulse(direction.scale((0.027 + strength * 0.065) * Math.exp(-d2 / 0.18) * resistance));
+      node.applyImpulse(direction.scale((0.095 + strength * 0.20) * Math.exp(-d2 / 0.19) * resistance));
       const speed = node.velocity.length();
-      if (speed > 0.9) node.velocity.scale(0.9 / speed, node.velocity);
+      if (speed > 3.2) node.velocity.scale(3.2 / speed, node.velocity);
     });
   }
 
-  startGrab(point: Vector3, normal = new Vector3(0, 0, 1), tangent?: Vector3) {
+  startGrab(point: Vector3, normal = new Vector3(0, 0, 1)) {
     this.endGrab();
     this.grab = { point: point.clone(), target: point.clone(), normal: normal.clone().normalize(),
-      contact: this.contact(point, normal, true, 0, tangent) };
+      contact: this.contact(point, normal, true, 0) };
   }
-  moveGrab(target: Vector3) {
-    if (!this.grab) return;
-    this.grab.target.copy(target);
-    const delta = target.clone().sub(this.grab.point);
-    const axial = delta.dot(this.grab.normal);
-    delta.addScaledVector(this.grab.normal, -axial);
-    // Progressive resistance: long pointer travel adds less and less skin
-    // stretch, rather than pulling a whole cheek freely toward the cursor.
-    const length = delta.length(), limit = 0.065;
-    if (length > 0) delta.multiplyScalar(limit * Math.tanh(length * 0.65 / limit) / length);
-    this.grab.contact.shearTarget.copy(delta);
-    this.grab.contact.target = (0.017 + this.softness * 0.012)
-      + 0.009 * Math.tanh(Math.max(0, axial) / 0.08);
-  }
+  moveGrab(target: Vector3) { if (this.grab) this.grab.target.copy(target); }
   endGrab() {
-    if (this.grab) {
-      this.grab.contact.held = false;
-      this.grab.contact.target = 0;
-      this.grab.contact.shearTarget.set(0, 0, 0);
-    }
+    if (this.grab) { this.grab.contact.held = false; this.grab.contact.target = 0; }
     this.grab = null;
   }
 
@@ -248,71 +198,43 @@ export class TissuePhysics {
         node.force.z -= node.velocity.z * this.muscleDamping + delta.z * extra;
       }
       if (this.grab) {
-        const delta = this.grab.contact.shearTarget.clone().multiplyScalar(0.12);
+        const delta = this.grab.target.clone().sub(this.grab.point);
+        const axial = delta.dot(this.grab.normal);
+        delta.addScaledVector(this.grab.normal, -axial).multiplyScalar(0.75)
+          .addScaledVector(this.grab.normal, axial * 0.4 - 0.025).clampLength(0, 0.32);
         this.nodes.forEach((node, i) => {
           const a = this.anchors[i], p = this.grab!.point;
           const w = Math.exp(-((p.x - a.x) ** 2 + (p.y - a.y) ** 2 + (p.z - a.z) ** 2 * 0.35) / 0.16);
-          node.force.x += ((a.x + delta.x - node.position.x) * 42 - node.velocity.x * 1.2) * w;
-          node.force.y += ((a.y + delta.y - node.position.y) * 42 - node.velocity.y * 1.2) * w;
-          node.force.z += ((a.z + delta.z - node.position.z) * 42 - node.velocity.z * 1.2) * w;
+          node.force.x += ((a.x + delta.x - node.position.x) * 62 - node.velocity.x * 1.2) * w;
+          node.force.y += ((a.y + delta.y - node.position.y) * 62 - node.velocity.y * 1.2) * w;
+          node.force.z += ((a.z + delta.z - node.position.z) * 62 - node.velocity.z * 1.2) * w;
         });
       }
       this.world.step(fixedStep);
       this.nodes.forEach((node, i) => {
         const delta = node.position.vsub(this.anchors[i]), length = delta.length();
-        if (length > 0.075) {
-          delta.scale(0.075 / length, delta);
+        if (length > 0.28) {
+          delta.scale(0.28 / length, delta);
           this.anchors[i].vadd(delta, node.position);
           node.velocity.scale(0.35, node.velocity);
         }
       });
       for (const c of this.contacts) {
-        const omega = 58, ratio = c.held ? 1 : MathUtils.lerp(1, 0.86, this.bounce);
-        const x = c.depth - c.target, velocity = c.velocity;
-        const decay = Math.exp(-ratio * omega * fixedStep);
-        // Exact damped-oscillator update preserves a brief impulse even when
-        // the skin response is faster than the muscle simulation timestep.
-        if (ratio < 0.9999) {
-          const frequency = omega * Math.sqrt(1 - ratio * ratio);
-          const cosine = Math.cos(frequency * fixedStep);
-          const sine = Math.sin(frequency * fixedStep) / frequency;
-          c.depth = c.target + decay * (x * cosine + (velocity + ratio * omega * x) * sine);
-          c.velocity = decay * (velocity * cosine - (ratio * omega * velocity + omega * omega * x) * sine);
-        } else {
-          const b = velocity + omega * x;
-          c.depth = c.target + (x + b * fixedStep) * decay;
-          c.velocity = (velocity - omega * b * fixedStep) * decay;
-        }
-        // Fast elastic response plus a small delayed recovery component.
-        // Times below are visual tuning, not universal human tissue constants.
-        c.delayed += (c.target - c.delayed) * (1 - Math.exp(-fixedStep / 0.22));
-        if (Math.abs(c.depth) > 0.04) { c.depth = MathUtils.clamp(c.depth, -0.04, 0.04); c.velocity *= 0.3; }
-        const shearOmega = 42;
-        const force = c.shearTarget.clone().sub(c.shear).multiplyScalar(shearOmega * shearOmega)
-          .addScaledVector(c.shearVelocity, -2 * shearOmega);
-        c.shearVelocity.addScaledVector(force, fixedStep);
-        c.shear.addScaledVector(c.shearVelocity, fixedStep);
+        const omega = 48, ratio = c.held ? 0.82 : MathUtils.lerp(0.82, 0.58, this.bounce);
+        c.velocity += (omega * omega * (c.target - c.depth) - 2 * ratio * omega * c.velocity) * fixedStep;
+        c.depth += c.velocity * fixedStep;
+        if (Math.abs(c.depth) > 0.14) { c.depth = MathUtils.clamp(c.depth, -0.14, 0.14); c.velocity *= 0.3; }
       }
-      this.contacts = this.contacts.filter(c => c.held || Math.abs(c.depth) > 0.00001
-        || Math.abs(c.delayed) > 0.00001 || Math.abs(c.velocity) > 0.0001 || c.shear.length() > 0.00001);
+      this.contacts = this.contacts.filter(c => c.held || Math.abs(c.depth) > 0.00001 || Math.abs(c.velocity) > 0.0001);
       this.accumulator -= fixedStep;
       this.steps++;
     }
     const offsets = this.nodes.map((n, i) => n.position.vsub(this.anchors[i]));
     this.muscleDisplacement = Math.max(...offsets.map(o => o.length()));
-    this.skinIndentation = this.skinFold = this.skinShear = 0;
-    for (const c of this.contacts) {
-      const amount = 0.84 * c.depth + 0.16 * c.delayed;
-      for (const profile of c.profile) {
-        this.skinIndentation = Math.max(this.skinIndentation, -profile * amount);
-        this.skinFold = Math.max(this.skinFold, profile * amount);
-      }
-      this.skinShear = Math.max(this.skinShear, c.shear.length());
-    }
+    this.skinIndentation = this.contacts.reduce((max, c) => Math.max(max, Math.abs(c.depth)), 0);
     this.energy = this.nodes.reduce((sum, n) => sum + n.velocity.lengthSquared() * n.mass, 0)
-      + this.contacts.reduce((sum, c) => sum + c.velocity * c.velocity * 0.03 + c.shearVelocity.lengthSq() * 0.03, 0);
-    const settle = this.muscleDisplacement < 0.00003
-      && Math.max(this.skinIndentation, this.skinFold, this.skinShear) < 0.00001
+      + this.contacts.reduce((sum, c) => sum + c.velocity * c.velocity * 0.03, 0);
+    const settle = this.muscleDisplacement < 0.00003 && this.skinIndentation < 0.00001
       && this.energy < 0.0000001 && !this.grab;
     if (settle) {
       if (this.normalFrame !== 0) {
@@ -339,11 +261,10 @@ export class TissuePhysics {
     }
     for (const c of this.contacts) {
       for (let j = 0; j < c.vertices.length; j++) {
-        const i = c.vertices[j] * 3, amplitude = 0.84 * c.depth + 0.16 * c.delayed;
-        const amount = c.profile[j] * amplitude, gather = c.gather[j] * amplitude, shear = c.shearWeights[j];
-        array[i] += c.normal.x * amount + c.across.x * gather + c.shear.x * shear;
-        array[i + 1] += c.normal.y * amount + c.across.y * gather + c.shear.y * shear;
-        array[i + 2] += c.normal.z * amount + c.across.z * gather + c.shear.z * shear;
+        const i = c.vertices[j] * 3, amount = c.profile[j] * c.depth;
+        array[i] += c.normal.x * amount;
+        array[i + 1] += c.normal.y * amount;
+        array[i + 2] += c.normal.z * amount;
       }
     }
     this.maxDisplacement = 0;
@@ -384,7 +305,7 @@ export class TissuePhysics {
     this.geometry.attributes.normal.array.set(this.initialNormals);
     this.geometry.attributes.normal.needsUpdate = true;
     this.maxDisplacement = this.peakDisplacement = this.energy = 0;
-    this.muscleDisplacement = this.skinIndentation = this.skinFold = this.skinShear = 0;
+    this.muscleDisplacement = this.skinIndentation = 0;
     this.normalFrame = 0;
   }
 }
